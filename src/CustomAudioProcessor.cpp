@@ -76,12 +76,90 @@ CustomAudioProcessor::CustomAudioProcessor()
   myVisualiser.setBufferSize(512);
   myVisualiser.setRepaintRate(30);
 
+  setupMidiCCMappings();
+}
+
+void CustomAudioProcessor::setupMidiCCMappings()
+{
+    // 自作MIDIコントローラーに合わせてここを調整してください
+    ccToParameterID[20] = "harmonicSeriesMode";
+    ccToParameterID[21] = "harmonicRatio";
+    ccToParameterID[22] = "oscillator";
+    ccToParameterID[23] = "terms";
+    ccToParameterID[24] = "filterOnOff";
+    ccToParameterID[25] = "cutoffOvertone";
+    ccToParameterID[26] = "attenuation";
+    ccToParameterID[27]  = "PosNegSync"; 
+    ccToParameterID[28]  = "PosNeg"; 
+    ccToParameterID[29]  = "cycleCountToAdd"; 
+    ccToParameterID[30]  = "cycleCountToSubtract";
+    ccToParameterID[70]  = "termsToAddPerCount";
+    ccToParameterID[71]  = "amp";
+    ccToParameterID[72]  = "attack";
+    ccToParameterID[73]  = "decay";
+    ccToParameterID[74]  = "sustain";
+    ccToParameterID[75]  = "release";
+}
+
+juce::String CustomAudioProcessor::getParameterDisplayValue(const juce::String& parameterID, float value)
+{
+    if (parameterID == "harmonicSeriesMode") {
+        return (value == 0) ? "Linear Mode" : "Exponential";
+    } else if (parameterID == "oscillator") {
+        if (value == 1) return "Square";
+        if (value == 2) return "Triangle";
+        if (value == 3) return "Sawtooth";
+    } else if (parameterID == "filterOnOff") {
+        return (value == 0) ? "Off" : "On";
+    } else if (parameterID == "PosNeg") {
+        return (value == 0) ? "Positive" : "Negative";
+    } else if (parameterID == "PosNegSync") {
+        return (value == 0) ? "Off" : "On";
+    } else if (parameterID == "terms" || parameterID == "cutoffOvertone" || parameterID == "cycleCountToAdd" || parameterID == "cycleCountToSubtract" || parameterID == "termsToAddPerCount") {
+        return juce::String((int)value);
+    }
+    
+    return juce::String(value, 2);
 }
 
 void CustomAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     rnboObject.prepareToProcess (sampleRate, static_cast<size_t> (samplesPerBlock));
     myVisualiser.clear();
+
+    auto devices = juce::MidiOutput::getAvailableDevices();
+    for (const auto& device : devices) {
+        std::cout << "MIDI Output Device: " << device.name << " (ID: " << device.identifier << ")" << std::endl;
+    }
+    if (!devices.isEmpty()) {
+        auto deviceInfo = devices[2]; // 最初のMIDI出力デバイスを選択
+        midiOutputDevice = juce::MidiOutput::openDevice (deviceInfo.identifier);
+        if (midiOutputDevice) {
+            std::cout << "Opened MIDI Output Device: " << deviceInfo.name << std::endl;
+
+            for (RNBO::ParameterIndex i = 0; i < rnboObject.getNumParameters(); ++i) {
+                RNBO::ParameterInfo info;
+                rnboObject.getParameterInfo (i, &info);
+                if (info.visible) {
+                    auto paramID = juce::String(rnboObject.getParameterId(i));
+
+                    float initialValue = parameters.getRawParameterValue(paramID)->load();
+                    
+                    // 数値ではなく表示用の文字列を取得
+                    juce::String initialValueStr = getParameterDisplayValue(paramID, initialValue);
+                    
+                    juce::String rangeMsg = paramID + "," + initialValueStr + "," + juce::String(int(info.max) - int(info.min) + 1);
+                    createMessage(rangeMsg);
+                }
+            }
+        } else {
+            std::cout << "Failed to open MIDI Output Device: " << deviceInfo.name << std::endl;
+        }
+    } else {
+        std::cout << "No MIDI Output Devices Available" << std::endl;
+    }
+
+
 }
  
 void CustomAudioProcessor::releaseResources()
@@ -127,9 +205,26 @@ void CustomAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::
 
 void CustomAudioProcessor::parameterChanged(const juce::String& parameterID, float newValue)
 {
-  std::cout << "Parameter Changed: " << parameterID << " New Value: " << newValue << std::endl;
-  rnboObject.setParameterValue (apvtsParamIdToRnboParamIndex[parameterID], newValue);
+    //std::cout << "Parameter Changed: " << parameterID << " New Value: " << newValue << std::endl;
+    rnboObject.setParameterValue (apvtsParamIdToRnboParamIndex[parameterID], newValue);
+    createMessage(getParameterDisplayValue(parameterID, newValue));
 }
+
+void CustomAudioProcessor::createMessage(juce::String newValue)
+{
+    juce::MemoryBlock data;
+    uint8_t manufacturerId = 0x7D;
+    data.append (&manufacturerId, 1);
+    data.append (newValue.toRawUTF8(), newValue.getNumBytesAsUTF8());
+
+    auto msg = juce::MidiMessage::createSysExMessage (data.getData(), (int) data.getSize());
+
+    std::cout << "Sending MIDI SysEx Message (Value Only): " << newValue << std::endl;
+    if (midiOutputDevice != nullptr) {
+        midiOutputDevice->sendMessageNow (msg);
+    }
+}
+
 
 
 RNBO::TimeConverter CustomAudioProcessor::preProcess(juce::MidiBuffer& midiMessages) {
@@ -140,6 +235,24 @@ RNBO::TimeConverter CustomAudioProcessor::preProcess(juce::MidiBuffer& midiMessa
 	_midiInput.clear();  // make sure midi input starts clear
 	for (auto meta: midiMessages)
 	{
+        auto msg = juce::MidiMessage (meta.data, meta.numBytes, meta.samplePosition);
+        
+        if (msg.isController())
+        {
+            int ccNumber = msg.getControllerNumber();
+            if (ccToParameterID.count(ccNumber) > 0)
+            {
+                juce::String paramID = ccToParameterID[ccNumber];
+                float newValue = msg.getControllerValue() / 127.0f;
+                
+                if (auto* param = parameters.getParameter(paramID))
+                {
+                    // パラメータを更新。これによりUIとRNBOエンジン両方に通知されます。
+                    param->setValueNotifyingHost(newValue);
+                }
+            }
+        }
+
         RNBO::MillisecondTime t = timeConverter.convertSampleOffsetToMilliseconds(meta.samplePosition);
 		_midiInput.addEvent(RNBO::MidiEvent(t, 0, meta.data, (RNBO::Index)meta.numBytes));
 	}

@@ -6,6 +6,9 @@ CustomAudioEditor::CustomAudioEditor (CustomAudioProcessor& p, juce::AudioProces
 {
     midnightLookAndFeel.setColourScheme(juce::LookAndFeel_V4::getMidnightColourScheme());
 
+    valueTreeState.addParameterListener ("PosNeg", this);
+    valueTreeState.addParameterListener ("PosNegSync", this);
+
     addAndMakeVisible(audioProcessor.myVisualiser);
     //audioProcessor.myVisualiser.setLookAndFeel(&midnightLookAndFeel);
     audioProcessor.myVisualiser.setColours(backgroundColour, juce::Colours::white);
@@ -68,20 +71,20 @@ CustomAudioEditor::CustomAudioEditor (CustomAudioProcessor& p, juce::AudioProces
     negButton.setClickingTogglesState(true);
     posButton.setRadioGroupId(2001);
     negButton.setRadioGroupId(2001);
-    posButton.setToggleState(true, juce::dontSendNotification);
-    negButton.setToggleState(false, juce::dontSendNotification);
+
+    // Initial state
+    bool isPosInitial = valueTreeState.getRawParameterValue("PosNeg")->load() > 0.5f;
+    posButton.setToggleState(isPosInitial, juce::dontSendNotification);
+    negButton.setToggleState(!isPosInitial, juce::dontSendNotification);
+
     posButton.onClick = [this]() {
         if (posButton.getToggleState()) {
-            valueTreeState.getParameter("PosNeg")->beginChangeGesture();
             valueTreeState.getParameter("PosNeg")->setValueNotifyingHost(1.0f);
-            valueTreeState.getParameter("PosNeg")->endChangeGesture();
         }
     };
     negButton.onClick = [this]() {
         if (negButton.getToggleState()) {
-            valueTreeState.getParameter("PosNeg")->beginChangeGesture();
             valueTreeState.getParameter("PosNeg")->setValueNotifyingHost(0.0f);
-            valueTreeState.getParameter("PosNeg")->endChangeGesture();
         }
     };
 
@@ -89,15 +92,11 @@ CustomAudioEditor::CustomAudioEditor (CustomAudioProcessor& p, juce::AudioProces
     posNegSyncButton.setButtonText("PosNegSync");
     posNegSyncAttachment.reset (new ButtonAttachment (valueTreeState, "PosNegSync", posNegSyncButton));
     posNegSyncButton.setLookAndFeel(&midnightLookAndFeel);  
-    posNegSyncButton.onClick = [this]() {
-    if(posNegSyncButton.getToggleState()) {
-        posButton.setEnabled(false);
-        negButton.setEnabled(false);
-        //posButton.setToggleState(true, juce::dontSendNotification);
-    } else {
-        posButton.setEnabled(true);
-        negButton.setEnabled(true);
-    }};
+    
+    // Initial enabled state
+    bool isSyncInitial = valueTreeState.getRawParameterValue("PosNegSync")->load() > 0.5f;
+    posButton.setEnabled(!isSyncInitial);
+    negButton.setEnabled(!isSyncInitial);
 
     addAndMakeVisible(cycleCountToAddSlider);
     cycleCountToAddSliderAttachment.reset (new SliderAttachment (valueTreeState, "cycleCountToAdd", cycleCountToAddSlider));
@@ -200,6 +199,32 @@ CustomAudioEditor::CustomAudioEditor (CustomAudioProcessor& p, juce::AudioProces
     harmonicRatioLabel.setJustificationType(juce::Justification::centred);
 
     setSize(900, 500);
+}
+
+CustomAudioEditor::~CustomAudioEditor()
+{
+    valueTreeState.removeParameterListener ("PosNeg", this);
+    valueTreeState.removeParameterListener ("PosNegSync", this);
+}
+
+void CustomAudioEditor::parameterChanged (const juce::String& parameterID, float newValue)
+{
+    if (parameterID == "PosNeg")
+    {
+        bool isPos = newValue > 0.5f;
+        juce::MessageManager::callAsync ([this, isPos] {
+            posButton.setToggleState (!isPos, juce::dontSendNotification);
+            negButton.setToggleState (isPos, juce::dontSendNotification);
+        });
+    }
+    else if (parameterID == "PosNegSync")
+    {
+        bool isSync = newValue > 0.5f;
+        juce::MessageManager::callAsync ([this, isSync] {
+            posButton.setEnabled (!isSync);
+            negButton.setEnabled (!isSync);
+        });
+    }
 }
 
 

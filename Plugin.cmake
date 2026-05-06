@@ -23,14 +23,14 @@ juce_add_plugin(RNBOAudioPlugin
   COMPANY_NAME "YukiMusic"     # Specify the name of the plugin's author
   IS_SYNTH TRUE                        # Is this a synth or an effect?
   NEEDS_MIDI_INPUT TRUE                # Does the plugin need midi input?
-  NEEDS_MIDI_OUTPUT FALSE              # Does the plugin need midi output?
+  NEEDS_MIDI_OUTPUT TRUE              # Does the plugin need midi output?
   IS_MIDI_EFFECT FALSE                 # Is this plugin a MIDI effect?
   EDITOR_WANTS_KEYBOARD_FOCUS TRUE     # Does the editor need keyboard focus?
   COPY_PLUGIN_AFTER_BUILD True        # Should the plugin be installed to a default location after building?
-  PLUGIN_MANUFACTURER_CODE "Exm2"      # A four-character manufacturer id with at least one upper-case character
-  PLUGIN_CODE "Rnb2"                   # A unique four-character plugin id with at least one upper-case character
+  PLUGIN_MANUFACTURER_CODE "Exm6"      # A four-character manufacturer id with at least one upper-case character
+  PLUGIN_CODE "Rnb6"                   # A unique four-character plugin id with at least one upper-case character
   FORMATS ${PLUGIN_FORMATS}            # The formats to build. Other valid formats are: AAX Unity VST AU AUv3
-  PRODUCT_NAME "RNBO_FourierSeriesExpansionSynthesizer")          # The name of the final executable, which can differ from the target name
+  PRODUCT_NAME "RNBO_FourierSeriesExpansionSynthesizer_withMIDIController")          # The name of the final executable, which can differ from the target name
 
 # `juce_generate_juce_header` will create a JuceHeader.h for a given target, which will be generated
 # into your build tree. This should be included with `#include <JuceHeader.h>`. The include path for

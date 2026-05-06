@@ -1,13 +1,15 @@
 #include "JuceHeader.h"
 #include "RNBO.h"
 
-class CustomAudioEditor : public juce::AudioProcessorEditor
+class CustomAudioEditor : public juce::AudioProcessorEditor,
+                          public juce::AudioProcessorValueTreeState::Listener
 {
 public:
     CustomAudioEditor(CustomAudioProcessor& p,juce::AudioProcessorValueTreeState& vts);
-    ~CustomAudioEditor() override = default;
+    ~CustomAudioEditor() override;
     void paint (Graphics& g) override;
     void resized() override; 
+    void parameterChanged (const juce::String& parameterID, float newValue) override;
     typedef juce::AudioProcessorValueTreeState::SliderAttachment SliderAttachment;
     typedef juce::AudioProcessorValueTreeState::ComboBoxAttachment ComboBoxAttachment;
     typedef juce::AudioProcessorValueTreeState::ButtonAttachment ButtonAttachment;
