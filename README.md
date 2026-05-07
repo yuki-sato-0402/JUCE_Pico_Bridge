@@ -20,8 +20,7 @@ This project is derived from the [Fourier Series Expansion Synthesizer](https://
 - **Visual Feedback**: LEDs provide immediate visual confirmation of hardware interactions and value levels via PWM dimming.
 
 ## Demonstration
-[Youtube](https://youtu.be/uP3yyErYtf8) 
-
+[Youtube<img width="1552" height="923" alt="Screenshot 2026-05-07 at 20 34 11" src="https://github.com/user-attachments/assets/7f5a23da-7530-4b67-98a2-132a26f0e817" />](https://youtu.be/uP3yyErYtf8) 
 
 ## System Architecture
 
@@ -64,7 +63,7 @@ This project is derived from the [Fourier Series Expansion Synthesizer](https://
 2. Enable MIDI input and output for the Pico within your plugin or DAW settings. (Regarding MIDI output from the JUCE plugin, the current specification hardcodes the output device. This will be corrected in the future.)
 
 ## Circuit Diagram
-*A Fritzing circuit diagram will be attached here soon.*
+<img width="1815" height="1092" alt="JUCE_PIcoBridge_bb" src="https://github.com/user-attachments/assets/9e054a18-b88f-4af0-8322-9f0208b512a7" />
 
 ---
 This project aims to blur the line between hardware and software in music production, providing a more physical and tactile sound design experience.
