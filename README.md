@@ -20,7 +20,7 @@ This project is derived from the [Fourier Series Expansion Synthesizer](https://
 - **Visual Feedback**: LEDs provide immediate visual confirmation of hardware interactions and value levels via PWM dimming.
 
 ## Demonstration
-[Youtube<img width="1552" height="923" alt="Screenshot 2026-05-07 at 20 34 11" src="https://github.com/user-attachments/assets/7f5a23da-7530-4b67-98a2-132a26f0e817" />](https://youtu.be/uP3yyErYtf8) 
+[Youtube<img width="4019" height="2409" alt="IMG_8527 (1)" src="https://github.com/user-attachments/assets/f8623ca4-c7dc-4664-b96a-895a89e069d7" />](https://youtu.be/knff6aJJ__c?si=4jntfMtz0ov__IAD) 
 
 ## System Architecture
 
