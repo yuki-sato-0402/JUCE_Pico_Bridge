@@ -81,7 +81,6 @@ CustomAudioProcessor::CustomAudioProcessor()
 
 void CustomAudioProcessor::setupMidiCCMappings()
 {
-    // 自作MIDIコントローラーに合わせてここを調整してください
     ccToParameterID[20] = "harmonicSeriesMode";
     ccToParameterID[21] = "harmonicRatio";
     ccToParameterID[22] = "oscillator";
@@ -132,11 +131,9 @@ void CustomAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
         std::cout << "MIDI Output Device: " << device.name << " (ID: " << device.identifier << ")" << std::endl;
     }
     if (!devices.isEmpty()) {
-        //Pico 2 CircuitPython usb_midi.ports[0] がMIDI出力デバイスとして認識されることを期待しています。
-
         auto deviceInfo = devices[0]; // デフォルトで最初のMIDI出力デバイスを選択
 
-        // Pico 2 CircuitPython usb_midi.ports[0] があれば、それを優先する
+        // If Pico 2 CircuitPython has usb_midi.ports[0], prioritize that
         for (const auto& device : devices) {
             if (device.name.contains ("Pico 2 CircuitPython usb_midi.ports[0]")) {
                 deviceInfo = device;
@@ -148,19 +145,24 @@ void CustomAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
         if (midiOutputDevice) {
             std::cout << "Opened MIDI Output Device: " << deviceInfo.name << std::endl;
 
-            for (RNBO::ParameterIndex i = 0; i < rnboObject.getNumParameters(); ++i) {
-                RNBO::ParameterInfo info;
-                rnboObject.getParameterInfo (i, &info);
-                if (info.visible) {
-                    auto paramID = juce::String(rnboObject.getParameterId(i));
+            // Send settings to Pico based on MIDI CC mapping
+            for (auto const& [cc, paramID] : ccToParameterID) {
+                if (auto* param = parameters.getParameter(paramID)) {
+                    float normalizedValue = param->getValue();
+                    // Since MIDI CC values must be sent as integer values ranging from 0 to 127, the normalized parameter values are scaled.
+                    int midiVal = static_cast<int>(normalizedValue * 127.0f);
 
-                    float initialValue = parameters.getRawParameterValue(paramID)->load();
-                    
-                    // 数値ではなく表示用の文字列を取得
-                    juce::String initialValueStr = getParameterDisplayValue(paramID, initialValue);
-                    
-                    juce::String rangeMsg = paramID + "," + initialValueStr + "," + juce::String(int(info.max) - int(info.min) + 1);
-                    createMessage(rangeMsg);
+                    // Get the actual parameter value for display purposes
+                    float actualValue = parameters.getRawParameterValue(paramID)->load();
+                    juce::String valStr = getParameterDisplayValue(paramID, actualValue);
+
+                    RNBO::ParameterIndex index = apvtsParamIdToRnboParamIndex[paramID];
+                    RNBO::ParameterInfo info;
+                    rnboObject.getParameterInfo(index, &info);
+                    int range = static_cast<int>(info.max - info.min + 1);
+
+                    juce::String confMsg = "CONF," + juce::String(cc) + "," + paramID + "," + valStr + "," + juce::String(range) + "," + juce::String(midiVal);
+                    createMessage(confMsg);
                 }
             }
         } else {
@@ -172,11 +174,11 @@ void CustomAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
 
 
 }
- 
+
 void CustomAudioProcessor::releaseResources()
 {
 }
- 
+
 
 void CustomAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
@@ -195,7 +197,7 @@ void CustomAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::
     const int visChannelIndex = 2;
     const int numSamples = buffer.getNumSamples();
 
-   
+
     if (buffer.getNumChannels() > visChannelIndex) {
         // Create a single-channel buffer for the visualizer
         juce::AudioBuffer<float> visualBuf(1, numSamples);
@@ -218,24 +220,29 @@ void CustomAudioProcessor::parameterChanged(const juce::String& parameterID, flo
 {
     //std::cout << "Parameter Changed: " << parameterID << " New Value: " << newValue << std::endl;
     rnboObject.setParameterValue (apvtsParamIdToRnboParamIndex[parameterID], newValue);
-    createMessage(getParameterDisplayValue(parameterID, newValue));
+
+    if (auto* param = parameters.getParameter(parameterID)) {
+        int midiVal = static_cast<int>(param->getValue() * 127.0f);
+        juce::String valStr = getParameterDisplayValue(parameterID, newValue);
+        juce::String updtMsg = "UPDT," + parameterID + "," + valStr + "," + juce::String(midiVal);
+        createMessage(updtMsg);
+    }
 }
 
-void CustomAudioProcessor::createMessage(juce::String newValue)
+void CustomAudioProcessor::createMessage(juce::String message)
 {
     juce::MemoryBlock data;
     uint8_t manufacturerId = 0x7D;
     data.append (&manufacturerId, 1);
-    data.append (newValue.toRawUTF8(), newValue.getNumBytesAsUTF8());
+    data.append (message.toRawUTF8(), message.getNumBytesAsUTF8());
 
     auto msg = juce::MidiMessage::createSysExMessage (data.getData(), (int) data.getSize());
 
-    std::cout << "Sending MIDI SysEx Message (Value Only): " << newValue << std::endl;
+    std::cout << "Sending MIDI SysEx Message: " << message << std::endl;
     if (midiOutputDevice != nullptr) {
         midiOutputDevice->sendMessageNow (msg);
     }
 }
-
 
 
 RNBO::TimeConverter CustomAudioProcessor::preProcess(juce::MidiBuffer& midiMessages) {
@@ -258,7 +265,7 @@ RNBO::TimeConverter CustomAudioProcessor::preProcess(juce::MidiBuffer& midiMessa
                 
                 if (auto* param = parameters.getParameter(paramID))
                 {
-                    // パラメータを更新。これによりUIとRNBOエンジン両方に通知されます。
+                   // Update the parameters. This notifies both the UI and the RNBO engine.
                     param->setValueNotifyingHost(newValue);
                 }
             }

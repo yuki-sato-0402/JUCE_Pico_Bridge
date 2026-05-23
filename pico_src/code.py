@@ -9,8 +9,8 @@ import adafruit_midi
 from adafruit_midi.system_exclusive import SystemExclusive
 from adafruit_midi.control_change import ControlChange
 
-# --- LCD設定 ---
-i2c = busio.I2C(board.GP15, board.GP14) #[cite: 1]
+# --- LCD Settings ---
+i2c = busio.I2C(board.GP15, board.GP14)
 LCD_addr = 0x27
 LCD_EN, LCD_BL = 0x04, 0x08
 CMD, CHR = 0x00, 0x01
@@ -48,31 +48,14 @@ def LCD_print(message):
     for c in message:
         LCD_write(ord(c), CHR)
 
-# --- パラメータ管理 ---
-Param_Config = {
-    20: {"name": "harmonicSeriesMode", "val_str": "--", "cur_midi": 0, "max_val": 127},
-    21: {"name": "harmonicRatio", "val_str": "--", "cur_midi": 0, "max_val": 127},
-    22: {"name": "oscillator", "val_str": "--", "cur_midi": 0, "max_val": 127},
-    23: {"name": "terms", "val_str": "--", "cur_midi": 0, "max_val": 127},
-    24: {"name": "filterOnOff", "val_str": "--", "cur_midi": 0, "max_val": 127},
-    25: {"name": "cutoffOvertone", "val_str": "--", "cur_midi": 0, "max_val": 127},
-    26: {"name": "attenuation", "val_str": "--", "cur_midi": 0, "max_val": 127},
-    27: {"name": "PosNegSync", "val_str": "--", "cur_midi": 0, "max_val": 127},
-    28: {"name": "PosNeg", "val_str": "--", "cur_midi": 0, "max_val": 127},
-    29: {"name": "cycleCountToAdd", "val_str": "--", "cur_midi": 0, "max_val": 127},
-    30: {"name": "cycleCountToSubtract", "val_str": "--", "cur_midi": 0, "max_val": 127},
-    70: {"name": "termsToAddPerCount", "val_str": "--", "cur_midi": 0, "max_val": 127},
-    71: {"name": "amp", "val_str": "--", "cur_midi": 0, "max_val": 127},
-    72: {"name": "attack", "val_str": "--", "cur_midi": 0, "max_val": 127},
-    73: {"name": "decay", "val_str": "--", "cur_midi": 0, "max_val": 127},
-    74: {"name": "sustain", "val_str": "--", "cur_midi": 0, "max_val": 127},
-    75: {"name": "release", "val_str": "--", "cur_midi": 0, "max_val": 127}
-}
-cc_keys = sorted(Param_Config.keys())
+# --- Parameter Management ---
+# Set it to empty initially so it can be populated dynamically from JUCE
+Param_Config = {}
+cc_keys = []
 current_idx = 0
 
 def display_param_and_value(name, val_text):
-    """名前の長さに応じて値の表示位置を変える"""
+    """Adjust the value display position based on the name length"""
     LCD_clear()
     if len(name) <= 16:
         LCD_cursor(0, 0)
@@ -86,12 +69,12 @@ def display_param_and_value(name, val_text):
         remaining_name = name[16:]
         LCD_print(f"{remaining_name} {val_text}")
 
-# --- LED・PWM設定 ---
+# --- LED and PWM Settings ---
 led_tact1 = pwmio.PWMOut(board.GP22, frequency=5000, duty_cycle=0)
-led_val = pwmio.PWMOut(board.GP26, frequency=5000, duty_cycle=0) # 以前のled_pot
+led_val = pwmio.PWMOut(board.GP26, frequency=5000, duty_cycle=0)
 led_tact2 = pwmio.PWMOut(board.GP17, frequency=5000, duty_cycle=0)
 
-# --- 入出力ピン設定 ---
+# --- Input/Output Pin Settings ---
 encoder = rotaryio.IncrementalEncoder(board.GP27, board.GP28)
 last_encoder_pos = encoder.position
 
@@ -104,43 +87,75 @@ def setup_sw(pin):
 sw1Up, sw1Down = setup_sw(board.GP5), setup_sw(board.GP7)
 sw2Up, sw2Down = setup_sw(board.GP20), setup_sw(board.GP8)
 
-# --- MIDI設定 ---
+# --- MIDI Settings ---
 midi_in = adafruit_midi.MIDI(midi_in=usb_midi.ports[0], in_buf_size=128)
 midi_out = adafruit_midi.MIDI(midi_out=usb_midi.ports[1], out_channel=0)
 
 LCD_init()
-display_param_and_value(Param_Config[cc_keys[current_idx]]["name"], "Ready")
+LCD_print("Waiting for JUCE")
 
 last_states = [True, True, True, True] 
 
 while True:
-    # --- 1. MIDI受信 (JUCEからのフィードバック) ---
+    # --- 1. MIDI Reception (Feedback from JUCE) ---
     msg = midi_in.receive()
     if isinstance(msg, SystemExclusive) and msg.manufacturer_id == b'\x7d':
         try:
             val_str = "".join([chr(b) for b in msg.data])
-            # カンマ区切りで解析: パラメータ名, 現在値, 最大値
             parts = val_str.split(",")
-            if len(parts) == 3:
-                p_name, p_val, p_max = parts[0], parts[1], int(parts[2])
+            
+            #The SysEx message sent on line 164 of CustomAudioProcessor.cpp
+            print(f"Received SysEx: {parts}") 
+            
+            # Settings sent in `prepareToPlay()` in `CustomAudioProcessor.cpp`
+            if parts[0] == "CONF":
+                # CONF,cc,id,val_str,max,midi_val
+                cc = int(parts[1])
+                p_id = parts[2]
+                p_val = parts[3]
+                p_max = int(parts[4])
+                p_midi = int(parts[5])
+                
+                Param_Config[cc] = {
+                    "name": p_id, 
+                    "val_str": p_val,  # Save the values for display
+                    "cur_midi": p_midi, # Save current MIDI values
+                    "max_val": p_max  
+                }
+                
+                old_len = len(cc_keys)
+                cc_keys = sorted(Param_Config.keys())
+                
+                # Update the display when the first parameter is received
+                if old_len == 0 and len(cc_keys) > 0:
+                    config = Param_Config[cc_keys[current_idx]]
+                    display_param_and_value(config["name"], config["val_str"])
+                    
+            # Updates sent in `parameterChanged()` in `CustomAudioProcessor.cpp`
+            elif parts[0] == "UPDT":
+                # UPDT,id,val_str,midi_val
+                p_id = parts[1]
+                p_val = parts[2]
+                p_midi = int(parts[3])
+                
                 for cc, config in Param_Config.items():
-                    print(f"Checking {config['name']} against {p_name}")
-                    if config["name"] == p_name:
-                        print(f"Matched {p_name} to CC {cc}")
+                    if config["name"] == p_id:
                         config["val_str"] = p_val
-                        config["max_val"] = p_max
-                        if cc == cc_keys[current_idx]:
+                        config["cur_midi"] = p_midi
+                        #If the parameter currently selected in sw1 is updated, the display is also updated
+                        if cc_keys and cc == cc_keys[current_idx]:
+                            print(f"Updating display for {p_id}: {p_val}", current_idx)
                             display_param_and_value(config["name"], config["val_str"])
                         break
-            else:
-                print(f"Unexpected SysEx format: {val_str}")
-                config = Param_Config[cc_keys[current_idx]]
-                config["val_str"] = val_str
-                display_param_and_value(config["name"], val_str)
         except Exception as e:
             print(f"SysEx Error: {e}")
 
-    # --- 2. パラメータ切り替え (sw1) + LED制御 ---
+    # Skip if the parameter has not yet been received
+    if not cc_keys:
+        sleep(0.01)
+        continue
+
+    # --- 2. Parameter Switching (sw1) + LED Control ---
     if not sw1Up.value or not sw1Down.value:
         led_tact1.duty_cycle = 65535
     else:
@@ -156,26 +171,24 @@ while True:
         config = Param_Config[cc_keys[current_idx]]
         display_param_and_value(config["name"], config["val_str"])
 
-    # --- 3. Encoder操作 + LED調光 ---
+    # --- 3. Encoder Operation + LED Dimming ---
     current_pos = encoder.position
     delta = current_pos - last_encoder_pos
     
     if delta != 0:
         config = Param_Config[cc_keys[current_idx]]
-        # 20クリックで360度 = MIDI 0-127の全域
-        # 1クリックあたりの変化量 = 127 / 20 = 6.35
-        step_val = 127 / 20
+        # Change per click (if you want to change by 127 over 20 clicks)
+        step_val = 127 / (20 * 3) 
         new_midi = config["cur_midi"] + (delta * step_val)
         config["cur_midi"] = max(0, min(127, int(new_midi)))
-        print(f"Encoder: {delta} steps, MIDI Value: {config['cur_midi']}")
         
         midi_out.send(ControlChange(cc_keys[current_idx], config["cur_midi"]))
         last_encoder_pos = current_pos
 
-    # LEDを現在のMIDI値に合わせて調光 (0-127 -> 0-65535)
+    # Dimmer the LED to match the current MIDI value
     led_val.duty_cycle = int(Param_Config[cc_keys[current_idx]]["cur_midi"] * 516)
 
-    # --- 4. パラメータ操作 (sw2) + LED制御 ---
+    # --- 4. Parameter Operation (sw2) + LED Control ---
     if not sw2Up.value or not sw2Down.value:
         led_tact2.duty_cycle = 65535
     else:
@@ -183,6 +196,7 @@ while True:
 
     if not sw2Up.value and last_states[2]:
         config = Param_Config[cc_keys[current_idx]]
+        # Step calculation based on resolution
         step = max(1, 128 // config["max_val"]) if config["max_val"] > 0 else 1
         config["cur_midi"] = min(127, config["cur_midi"] + step)
         midi_out.send(ControlChange(cc_keys[current_idx], config["cur_midi"]))
@@ -193,6 +207,6 @@ while True:
         config["cur_midi"] = max(0, config["cur_midi"] - step)
         midi_out.send(ControlChange(cc_keys[current_idx], config["cur_midi"]))
 
-    # 状態保存とウェイト
+    # State Preservation and Weight
     last_states = [sw1Up.value, sw1Down.value, sw2Up.value, sw2Down.value]
     sleep(0.01)
