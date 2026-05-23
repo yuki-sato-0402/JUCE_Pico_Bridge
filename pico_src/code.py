@@ -124,13 +124,16 @@ while True:
             if len(parts) == 3:
                 p_name, p_val, p_max = parts[0], parts[1], int(parts[2])
                 for cc, config in Param_Config.items():
+                    print(f"Checking {config['name']} against {p_name}")
                     if config["name"] == p_name:
+                        print(f"Matched {p_name} to CC {cc}")
                         config["val_str"] = p_val
                         config["max_val"] = p_max
                         if cc == cc_keys[current_idx]:
                             display_param_and_value(config["name"], config["val_str"])
                         break
             else:
+                print(f"Unexpected SysEx format: {val_str}")
                 config = Param_Config[cc_keys[current_idx]]
                 config["val_str"] = val_str
                 display_param_and_value(config["name"], val_str)

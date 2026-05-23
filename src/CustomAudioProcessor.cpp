@@ -132,7 +132,18 @@ void CustomAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
         std::cout << "MIDI Output Device: " << device.name << " (ID: " << device.identifier << ")" << std::endl;
     }
     if (!devices.isEmpty()) {
-        auto deviceInfo = devices[2]; // 最初のMIDI出力デバイスを選択
+        //Pico 2 CircuitPython usb_midi.ports[0] がMIDI出力デバイスとして認識されることを期待しています。
+
+        auto deviceInfo = devices[0]; // デフォルトで最初のMIDI出力デバイスを選択
+
+        // Pico 2 CircuitPython usb_midi.ports[0] があれば、それを優先する
+        for (const auto& device : devices) {
+            if (device.name.contains ("Pico 2 CircuitPython usb_midi.ports[0]")) {
+                deviceInfo = device;
+                break;
+            }
+        }
+
         midiOutputDevice = juce::MidiOutput::openDevice (deviceInfo.identifier);
         if (midiOutputDevice) {
             std::cout << "Opened MIDI Output Device: " << deviceInfo.name << std::endl;
