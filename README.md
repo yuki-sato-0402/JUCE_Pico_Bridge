@@ -22,24 +22,6 @@ This project is derived from the [Fourier Series Expansion Synthesizer](https://
 ## Demonstration
 [Youtube<img width="4019" height="2409" alt="IMG_8527 (1)" src="https://github.com/user-attachments/assets/f8623ca4-c7dc-4664-b96a-895a89e069d7" />](https://youtu.be/knff6aJJ__c?si=4jntfMtz0ov__IAD) 
 
-## System Architecture
-
-### Hardware (Raspberry Pi Pico)
-- **Platform**: CircuitPython
-- **Key Libraries**: `adafruit_midi`, `adafruit_bus_device`
-- **Pin Assignments**:
-  - **I2C (LCD)**: SDA=GP14, SCL=GP15 (To prevent exceeding the rated voltage of the pico, a bidirectional logic level converter module is included.)
-  - **Rotary Encoder**: A=GP27, B=GP28
-  - **Left Switches (Selection)**: Up=GP5, Down=GP7
-  - **Right Switches (Adjustment)**: Up=GP20, Down=GP8
-  - **LEDs (PWM)**: Parameter Select=GP22, Value=GP26, Step Control=GP17
-
-### Software (JUCE Plugin)
-- **Engine**: RNBO (Fourier Series Expansion Synthesizer)
-- **Communication Protocol**:
-  - **SysEx (Manufacturer ID: 0x7D)**: Transmits strings in the format `ParameterName,DisplayValue,MaxSteps`.
-  - **MIDI CC**: Parameters are mapped to specific CC numbers (e.g., 20–30, 70–75).
-
 ## Getting Started
 
 ### 1. Prepare Raspberry Pi Pico
@@ -61,6 +43,24 @@ This project is derived from the [Fourier Series Expansion Synthesizer](https://
 ### 3. MIDI Connection
 1. Connect the Pico to your PC via USB; it will be recognized as a MIDI device.
 2. Enable MIDI input and output for the Pico within your plugin or DAW settings. (Regarding MIDI output from the JUCE plugin, the current specification hardcodes the output device. This will be corrected in the future.)
+
+## System Architecture
+
+### Hardware (Raspberry Pi Pico)
+- **Platform**: CircuitPython
+- **Key Libraries**: `adafruit_midi`, `adafruit_bus_device`
+- **Pin Assignments**:
+  - **I2C (LCD)**: SDA=GP14, SCL=GP15 (To prevent exceeding the rated voltage of the pico, a bidirectional logic level converter module is included.)
+  - **Rotary Encoder**: A=GP27, B=GP28
+  - **Left Switches (Selection)**: Up=GP5, Down=GP7
+  - **Right Switches (Adjustment)**: Up=GP20, Down=GP8
+  - **LEDs (PWM)**: Parameter Select=GP22, Value=GP26, Step Control=GP17
+
+### Software (JUCE Plugin)
+- **Engine**: RNBO (Fourier Series Expansion Synthesizer)
+- **Communication Protocol**:
+  - **SysEx (Manufacturer ID: 0x7D)**: Transmits strings in the format `ParameterName,DisplayValue,MaxSteps`.
+  - **MIDI CC**: Parameters are mapped to specific CC numbers (e.g., 20–30, 70–75).
 
 ## Circuit Diagram
 <img width="1815" height="1092" alt="JUCE_PIcoBridge_bb" src="https://github.com/user-attachments/assets/9e054a18-b88f-4af0-8322-9f0208b512a7" />
